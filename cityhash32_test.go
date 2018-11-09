@@ -5,10 +5,7 @@ import (
 )
 
 func TestCityHash32(t *testing.T) {
-	const dataSize int = 1 << 20
-	var data [dataSize]byte
-
-	var testdata = []uint64{0xdc56d17a, 0x99929334, 0x4252edb7, 0xebc34f3c, 0x26f2b463, 0xb042c047, 0xe73bb0a8,
+	var testcases = []uint64{0xdc56d17a, 0x99929334, 0x4252edb7, 0xebc34f3c, 0x26f2b463, 0xb042c047, 0xe73bb0a8,
 		0x91dfdd75, 0xc87f95de, 0x3f5538ef, 0x70eb1a1f, 0xcfd63b83, 0x894a52ef, 0x9cde6a54, 0x6c4898d5, 0x13e1978e,
 		0x51b4ba8, 0xb6b06e40, 0x240a2f2, 0x5dcefc30, 0x7a48b105, 0xfd55007b, 0x6b95894c, 0x3360e827, 0x45177e0b, 0x7c6fffe4,
 		0xbbc78da4, 0xc5c25d39, 0xb6e5d06e, 0x6178504e, 0xbd4c3637, 0x6e7ac474, 0x1fb4b518, 0x31d13d6d, 0x26fa72e3, 0x6a7433bf,
@@ -42,25 +39,35 @@ func TestCityHash32(t *testing.T) {
 		0x7abf48e3, 0xdea4e3dd, 0xc6064f22, 0x743bed9c, 0xfce254d5, 0xe47ec9d1, 0x334a145c, 0xadec1e3c, 0xf6a9fbf8,
 		0x5398210c}
 
+	data := generateTestData()
+	var i int
+	for i = 0; i < len(testcases); i++ {
+		assertEqual(t, testcases[i], uint64(CityHash32(data[i])))
+	}
+}
+
+func assertEqual(t *testing.T, expected, actual uint64) {
+	if expected != actual {
+		t.Errorf("ERROR: expected 0x%x but got 0x%x\n", expected, actual)
+	}
+}
+
+func generateTestData() [300][]byte {
+	var fulldata []byte
 	var a uint64 = 9
 	var b uint64 = 777
-	for i := 0; i < dataSize; i++ {
+	for i := 0; i < (1 << 20); i++ {
 		a += b
 		b += a
 		a = (a ^ (a >> 41)) * k0
 		b = (b^(b>>41))*k0 + uint64(i)
 		u := uint8(b >> 37)
-		data[i] = byte(u)
+		fulldata = append(fulldata, byte(u))
 	}
-
-	var i int
-	for i = 0; i < len(testdata)-1; i++ {
-		t.Logf("INFO: offset = %d, length = %d", i*i, i)
-		if act := uint64(CityHash32(data[i*i:], uint32(i))); testdata[i] != act {
-			t.Errorf("ERROR: expected 0x%x but got 0x%x\n", testdata[i], act)
-		}
+	testdata := [300][]byte{}
+	for i := 0; i < 299; i++ {
+		testdata[i] = fulldata[i*i : (i*i)+i]
 	}
-	if act := uint64(CityHash32(data[0:], uint32(dataSize))); testdata[i] != act {
-		t.Errorf("ERROR: expected 0x%x but got 0x%x\n", testdata[i], act)
-	}
+	testdata[299] = fulldata
+	return testdata
 }

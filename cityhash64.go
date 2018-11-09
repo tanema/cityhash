@@ -30,7 +30,7 @@ func (city *City64) Sum(b []byte) []byte {
 }
 
 func (city *City64) Sum64() uint64 {
-	return CityHash64(city.s, uint32(len(city.s)))
+	return CityHash64(city.s)
 }
 
 func (city *City64) Reset() {
@@ -50,7 +50,9 @@ func (city *City64) Size() int {
 	return 8
 }
 
-func CityHash64(s []byte, length uint32) uint64 {
+func CityHash64(s []byte) uint64 {
+	length := uint32(len(s))
+
 	if length <= 32 {
 		if length <= 16 {
 			return hashLen0to16(s, length)
@@ -88,16 +90,7 @@ func CityHash64(s []byte, length uint32) uint64 {
 	return hashLen16(hashLen16(v.Lower64(), w.Lower64())+shiftMix(y)*k1+z, hashLen16(v.Higher64(), w.Higher64())+x)
 }
 
-func CityHash64WithSeed(s []byte, length uint32, seed uint64) uint64 {
-	return CityHash64WithSeeds(s, length, k2, seed)
-}
-
-func CityHash64WithSeeds(s []byte, length uint32, seed0, seed1 uint64) uint64 {
-	return hashLen16(CityHash64(s, length)-seed0, seed1)
-}
-
-func rotate64(val uint64, shift uint32) uint64 {
-	// Avoid shifting by 64: doing so yields an undefined result.
+func rotate64(val uint64, shift uint32) uint64 { // Avoid shifting by 64: doing so yields an undefined result.
 	if shift != 0 {
 		return ((val >> shift) | (val << (64 - shift)))
 	}
@@ -123,7 +116,8 @@ func hash128to64(x Uint128) uint64 {
 	return b
 }
 
-func weakHashLen32WithSeeds(w, x, y, z, a, b uint64) Uint128 {
+func weakHashLen32WithSeeds3(s []byte, a, b uint64) Uint128 {
+	w, x, y, z := fetch64(s), fetch64(s[8:]), fetch64(s[16:]), fetch64(s[24:])
 	a += w
 	b = rotate64(b+a+z, 21)
 	c := a
@@ -131,10 +125,6 @@ func weakHashLen32WithSeeds(w, x, y, z, a, b uint64) Uint128 {
 	a += y
 	b += rotate64(a, 44)
 	return Uint128{a + z, b + c}
-}
-
-func weakHashLen32WithSeeds3(s []byte, a, b uint64) Uint128 {
-	return weakHashLen32WithSeeds(fetch64(s), fetch64(s[8:]), fetch64(s[16:]), fetch64(s[24:]), a, b)
 }
 
 func hashLen16(u, v uint64) uint64 {

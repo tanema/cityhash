@@ -9,7 +9,9 @@ const (
 	c2 uint32 = 0x1b873593
 )
 
-func CityHash32(s []byte, length uint32) uint32 {
+func CityHash32(s []byte) uint32 {
+	length := uint32(len(s))
+
 	if length <= 4 {
 		return hash32Len0to4(s, length)
 	} else if length <= 12 {
@@ -18,7 +20,6 @@ func CityHash32(s []byte, length uint32) uint32 {
 		return hash32Len13to24(s, length)
 	}
 
-	// length > 24
 	h := length
 	g := c1 * length
 	f := g

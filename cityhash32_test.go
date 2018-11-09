@@ -42,7 +42,7 @@ func TestCityHash32(t *testing.T) {
 	data := generateTestData()
 	var i int
 	for i = 0; i < len(testcases); i++ {
-		assertEqual(t, testcases[i], uint64(CityHash32(data[i])))
+		assertEqual(t, testcases[i], uint64(Sum32(data[i])))
 	}
 }
 

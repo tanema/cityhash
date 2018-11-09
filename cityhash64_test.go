@@ -70,6 +70,6 @@ func TestCityHash64(t *testing.T) {
 
 	data := generateTestData()
 	for i, expected := range testcases {
-		assertEqual(t, expected, CityHash64(data[i]))
+		assertEqual(t, expected, Sum64(data[i]))
 	}
 }

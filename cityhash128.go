@@ -1,47 +1,29 @@
 package cityhash
 
-func cityMurmur(s []byte, length uint32, seed Uint128) Uint128 {
-	a := seed.Lower64()
-	b := seed.Higher64()
-	var c, d uint64
-	l := int32(length) - 16
+import (
+	"hash"
+)
 
-	if l <= 0 { // len <= 16
-		a = shiftMix(a*k1) * k1
-		c = b*k1 + hashLen0to16(s, length)
-
-		if length >= 8 {
-			d = shiftMix(a + fetch64(s))
-		} else {
-			d = shiftMix(a + c)
-		}
-	} else { // len > 16
-		c = hashLen16(fetch64(s[length-8:])+k1, a)
-		d = hashLen16(b+uint64(length), c+fetch64(s[length-16:]))
-		a += d
-
-		for {
-			a ^= shiftMix(fetch64(s)*k1) * k1
-			a *= k1
-			b ^= a
-			c ^= shiftMix(fetch64(s[8:])*k1) * k1
-			c *= k1
-			d ^= c
-			s = s[16:]
-			l -= 16
-
-			if l <= 0 {
-				break
-			}
-		}
-	}
-
-	a = hashLen16(a, c)
-	b = hashLen16(d, b)
-	return Uint128{a ^ b, hashLen16(b, a)}
+type Hash128 struct {
+	s []byte
 }
 
-func CityHash128(s []byte) Uint128 {
+func Sum128(s []byte) Uint128 {
+	h := &Hash128{}
+	h.Write(s)
+	return h.Sum128()
+}
+
+func New128() hash.Hash {
+	return &Hash128{}
+}
+
+func (city *Hash128) Sum(b []byte) []byte {
+	return city.Sum128().Bytes()
+}
+
+func (city *Hash128) Sum128() Uint128 {
+	s := city.s
 	length := uint32(len(s))
 	seed := Uint128{k0, k1}
 
@@ -122,4 +104,62 @@ func CityHash128(s []byte) Uint128 {
 	y = hashLen16(y+z, w.Lower64())
 
 	return Uint128{hashLen16(x+v.Higher64(), w.Higher64()) + y, hashLen16(x+w.Higher64(), y+v.Higher64())}
+}
+
+func (city *Hash128) Reset() {
+	city.s = city.s[0:0]
+}
+
+func (city *Hash128) BlockSize() int {
+	return 1
+}
+
+func (city *Hash128) Write(s []byte) (n int, err error) {
+	city.s = append(city.s, s...)
+	return len(s), nil
+}
+
+func (city *Hash128) Size() int {
+	return 16
+}
+
+func cityMurmur(s []byte, length uint32, seed Uint128) Uint128 {
+	a := seed.Lower64()
+	b := seed.Higher64()
+	var c, d uint64
+	l := int32(length) - 16
+
+	if l <= 0 { // len <= 16
+		a = shiftMix(a*k1) * k1
+		c = b*k1 + hashLen0to16(s, length)
+
+		if length >= 8 {
+			d = shiftMix(a + fetch64(s))
+		} else {
+			d = shiftMix(a + c)
+		}
+	} else { // len > 16
+		c = hashLen16(fetch64(s[length-8:])+k1, a)
+		d = hashLen16(b+uint64(length), c+fetch64(s[length-16:]))
+		a += d
+
+		for {
+			a ^= shiftMix(fetch64(s)*k1) * k1
+			a *= k1
+			b ^= a
+			c ^= shiftMix(fetch64(s[8:])*k1) * k1
+			c *= k1
+			d ^= c
+			s = s[16:]
+			l -= 16
+
+			if l <= 0 {
+				break
+			}
+		}
+	}
+
+	a = hashLen16(a, c)
+	b = hashLen16(d, b)
+	return Uint128{a ^ b, hashLen16(b, a)}
 }

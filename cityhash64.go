@@ -11,46 +11,29 @@ const (
 	k2 uint64 = 0x9ae16a3b2f90404f
 )
 
-type City64 struct {
+type Hash64 struct {
 	s []byte
 }
 
-var _ hash.Hash64 = (*City64)(nil)
-var _ hash.Hash = (*City64)(nil)
-
-func New64() hash.Hash64 {
-	return &City64{}
+func Sum64(s []byte) uint64 {
+	h := New64()
+	h.Write(s)
+	return h.Sum64()
 }
 
-func (city *City64) Sum(b []byte) []byte {
+func New64() hash.Hash64 {
+	return &Hash64{}
+}
+
+func (city *Hash64) Sum(b []byte) []byte {
 	b2 := make([]byte, 8)
 	binary.BigEndian.PutUint64(b2, city.Sum64())
 	b = append(b, b2...)
 	return b
 }
 
-func (city *City64) Sum64() uint64 {
-	return CityHash64(city.s)
-}
-
-func (city *City64) Reset() {
-	city.s = city.s[0:0]
-}
-
-func (city *City64) BlockSize() int {
-	return 1
-}
-
-func (city *City64) Write(s []byte) (n int, err error) {
-	city.s = append(city.s, s...)
-	return len(s), nil
-}
-
-func (city *City64) Size() int {
-	return 8
-}
-
-func CityHash64(s []byte) uint64 {
+func (city *Hash64) Sum64() uint64 {
+	s := city.s
 	length := uint32(len(s))
 
 	if length <= 32 {
@@ -88,6 +71,23 @@ func CityHash64(s []byte) uint64 {
 	}
 
 	return hashLen16(hashLen16(v.Lower64(), w.Lower64())+shiftMix(y)*k1+z, hashLen16(v.Higher64(), w.Higher64())+x)
+}
+
+func (city *Hash64) Reset() {
+	city.s = city.s[0:0]
+}
+
+func (city *Hash64) BlockSize() int {
+	return 1
+}
+
+func (city *Hash64) Write(s []byte) (n int, err error) {
+	city.s = append(city.s, s...)
+	return len(s), nil
+}
+
+func (city *Hash64) Size() int {
+	return 8
 }
 
 func rotate64(val uint64, shift uint32) uint64 { // Avoid shifting by 64: doing so yields an undefined result.

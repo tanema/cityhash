@@ -2,6 +2,7 @@ package cityhash
 
 import (
 	"encoding/binary"
+	"hash"
 )
 
 const (
@@ -9,7 +10,29 @@ const (
 	c2 uint32 = 0x1b873593
 )
 
-func CityHash32(s []byte) uint32 {
+type Hash32 struct {
+	s []byte
+}
+
+func Sum32(s []byte) uint32 {
+	h := New32()
+	h.Write(s)
+	return h.Sum32()
+}
+
+func New32() hash.Hash32 {
+	return &Hash32{}
+}
+
+func (city *Hash32) Sum(b []byte) []byte {
+	b2 := make([]byte, 4)
+	binary.BigEndian.PutUint32(b2, city.Sum32())
+	b = append(b, b2...)
+	return b
+}
+
+func (city *Hash32) Sum32() uint32 {
+	s := city.s
 	length := uint32(len(s))
 
 	if length <= 4 {
@@ -88,6 +111,24 @@ func CityHash32(s []byte) uint32 {
 	h = h*5 + 0xe6546b64
 	h = rotate32(h, 17) * c1
 	return h
+
+}
+
+func (city *Hash32) Reset() {
+	city.s = city.s[0:0]
+}
+
+func (city *Hash32) BlockSize() int {
+	return 1
+}
+
+func (city *Hash32) Write(s []byte) (n int, err error) {
+	city.s = append(city.s, s...)
+	return len(s), nil
+}
+
+func (city *Hash32) Size() int {
+	return 4
 }
 
 func bswap32(x uint32) uint32 { // Copied from netbsd's bswap32.c

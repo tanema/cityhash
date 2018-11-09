@@ -110,7 +110,7 @@ var testcases = [][]uint64{
 func TestCityHash128(t *testing.T) {
 	data := generateTestData()
 	for i, expected := range testcases {
-		u := CityHash128(data[i])
+		u := Sum128(data[i])
 		assertEqual(t, expected[0], u.Lower64())
 		assertEqual(t, expected[1], u.Higher64())
 	}

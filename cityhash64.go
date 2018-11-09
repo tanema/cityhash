@@ -36,13 +36,12 @@ func (city *Hash64) Sum64() uint64 {
 	s := city.s
 	length := uint32(len(s))
 
-	if length <= 32 {
-		if length <= 16 {
-			return hashLen0to16(s, length)
-		}
-		return hashLen17to32(s, length)
+	if length <= 16 {
+		return hashLen0to16(s)
+	} else if length <= 32 {
+		return hashLen17to32(s)
 	} else if length <= 64 {
-		return hashLen33to64(s, length)
+		return hashLen33to64(s)
 	}
 
 	x := fetch64(s[length-40:])
@@ -52,8 +51,7 @@ func (city *Hash64) Sum64() uint64 {
 	w := weakHashLen32WithSeeds3(s[length-32:], y+k1, x)
 	x = x*k1 + fetch64(s)
 
-	length = (length - 1) & ^uint32(63)
-	for {
+	for i := (length - 1) & ^uint32(63); i > 0; i -= 64 {
 		x = rotate64(x+y+v.Lower64()+fetch64(s[8:]), 37) * k1
 		y = rotate64(y+v.Higher64()+fetch64(s[48:]), 42) * k1
 		x ^= w.Higher64()
@@ -63,11 +61,6 @@ func (city *Hash64) Sum64() uint64 {
 		w = weakHashLen32WithSeeds3(s[32:], z+w.Higher64(), y+fetch64(s[16:]))
 		z, x = x, z
 		s = s[64:]
-		length -= 64
-
-		if length == 0 {
-			break
-		}
 	}
 
 	return hashLen16(hashLen16(v.Lower64(), w.Lower64())+shiftMix(y)*k1+z, hashLen16(v.Higher64(), w.Higher64())+x)
@@ -78,7 +71,7 @@ func (city *Hash64) Reset() {
 }
 
 func (city *Hash64) BlockSize() int {
-	return 1
+	return 64
 }
 
 func (city *Hash64) Write(s []byte) (n int, err error) {
@@ -91,10 +84,7 @@ func (city *Hash64) Size() int {
 }
 
 func rotate64(val uint64, shift uint32) uint64 { // Avoid shifting by 64: doing so yields an undefined result.
-	if shift != 0 {
-		return ((val >> shift) | (val << (64 - shift)))
-	}
-	return val
+	return ((val >> shift) | (val << (64 - shift)))
 }
 
 func fetch64(p []byte) uint64 {
@@ -105,8 +95,7 @@ func shiftMix(val uint64) uint64 {
 	return val ^ (val >> 47)
 }
 
-func hash128to64(x Uint128) uint64 {
-	// Murmur-inspired hashing.
+func hash128to64(x Uint128) uint64 { // Murmur-inspired hashing.
 	const mul uint64 = 0x9ddfea08eb382d69
 	a := (x.Lower64() ^ x.Higher64()) * mul
 	a ^= (a >> 47)
@@ -131,8 +120,7 @@ func hashLen16(u, v uint64) uint64 {
 	return hash128to64(Uint128{u, v})
 }
 
-func hashLen16_3(u, v, mul uint64) uint64 {
-	// Murmur-inspired hashing.
+func hashLen163(u, v, mul uint64) uint64 { // Murmur-inspired hashing.
 	a := (u ^ v) * mul
 	a ^= (a >> 47)
 	b := (v ^ a) * mul
@@ -141,29 +129,31 @@ func hashLen16_3(u, v, mul uint64) uint64 {
 	return b
 }
 
-func hashLen17to32(s []byte, length uint32) uint64 {
+func hashLen17to32(s []byte) uint64 {
+	length := uint32(len(s))
 	mul := k2 + uint64(length)*2
 	a := fetch64(s) * k1
 	b := fetch64(s[8:])
 	c := fetch64(s[length-8:]) * mul
 	d := fetch64(s[length-16:]) * k2
-	return hashLen16_3(rotate64(a+b, 43)+rotate64(c, 30)+d, a+rotate64(b+k2, 18)+c, mul)
+	return hashLen163(rotate64(a+b, 43)+rotate64(c, 30)+d, a+rotate64(b+k2, 18)+c, mul)
 }
 
-func hashLen0to16(s []byte, length uint32) uint64 {
+func hashLen0to16(s []byte) uint64 {
+	length := uint32(len(s))
 	if length >= 8 {
 		mul := k2 + uint64(length)*2
 		a := fetch64(s) + k2
 		b := fetch64(s[length-8:])
 		c := rotate64(b, 37)*mul + a
 		d := (rotate64(a, 25) + b) * mul
-		return hashLen16_3(c, d, mul)
+		return hashLen163(c, d, mul)
 	}
 
 	if length >= 4 {
 		mul := k2 + uint64(length)*2
 		a := uint64(fetch32(s))
-		return hashLen16_3(uint64(length)+(a<<3), uint64(fetch32(s[length-4:])), mul)
+		return hashLen163(uint64(length)+(a<<3), uint64(fetch32(s[length-4:])), mul)
 	}
 
 	if length > 0 {
@@ -189,7 +179,8 @@ func bswap64(x uint64) uint64 { // Copied from netbsd's bswap64.c
 		((x >> 56) & 0x00000000000000ff)
 }
 
-func hashLen33to64(s []byte, length uint32) uint64 {
+func hashLen33to64(s []byte) uint64 {
+	length := uint32(len(s))
 	mul := k2 + uint64(length)*2
 	a := fetch64(s) * k2
 	b := fetch64(s[8:])

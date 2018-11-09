@@ -8,6 +8,7 @@ import (
 const (
 	c1 uint32 = 0xcc9e2d51
 	c2 uint32 = 0x1b873593
+	c3 uint32 = 0xe6546b64
 )
 
 type Hash32 struct {
@@ -43,61 +44,33 @@ func (city *Hash32) Sum32() uint32 {
 		return hash32Len13to24(s, length)
 	}
 
-	h := length
-	g := c1 * length
-	f := g
 	a0 := rotate32(fetch32(s[length-4:])*c1, 17) * c2
 	a1 := rotate32(fetch32(s[length-8:])*c1, 17) * c2
 	a2 := rotate32(fetch32(s[length-16:])*c1, 17) * c2
 	a3 := rotate32(fetch32(s[length-12:])*c1, 17) * c2
 	a4 := rotate32(fetch32(s[length-20:])*c1, 17) * c2
-	h ^= a0
-	h = rotate32(h, 19)
-	h = h*5 + 0xe6546b64
-	h ^= a2
-	h = rotate32(h, 19)
-	h = h*5 + 0xe6546b64
-	g ^= a1
-	g = rotate32(g, 19)
-	g = g*5 + 0xe6546b64
-	g ^= a3
-	g = rotate32(g, 19)
-	g = g*5 + 0xe6546b64
-	f += a4
-	f = rotate32(f, 19)
-	f = f*5 + 0xe6546b64
 
-	iters := (length - 1) / 20
-	for {
+	h := rotate32(length^a0, 19)*5 + c3
+	h = rotate32(h^a2, 19)*5 + c3
+	g := rotate32((c1*length)^a1, 19)*5 + c3
+	g = rotate32(g^a3, 19)*5 + c3
+	f := rotate32((c1*length)+a4, 19)*5 + c3
+
+	for i := (length - 1) / 20; i > 0; i-- {
 		a0 := rotate32(fetch32(s)*c1, 17) * c2
 		a1 := fetch32(s[4:])
 		a2 := rotate32(fetch32(s[8:])*c1, 17) * c2
 		a3 := rotate32(fetch32(s[12:])*c1, 17) * c2
 		a4 := fetch32(s[16:])
-		h ^= a0
-		h = rotate32(h, 18)
-		h = h*5 + 0xe6546b64
-		f += a1
-		f = rotate32(f, 19)
-		f = f * c1
-		g += a2
-		g = rotate32(g, 18)
-		g = g*5 + 0xe6546b64
-		h ^= a3 + a1
-		h = rotate32(h, 19)
-		h = h*5 + 0xe6546b64
-		g ^= a4
-		g = bswap32(g) * 5
-		h += a4 * 5
-		h = bswap32(h)
+		h = rotate32(h^a0, 18)*5 + c3
+		f = rotate32(f+a1, 19) * c1
+		g = rotate32(g+a2, 18)*5 + c3
+		h = rotate32(h^(a3+a1), 19)*5 + c3
+		g = bswap32(g^a4) * 5
+		h = bswap32(h + (a4 * 5))
 		f += a0
 		f, h, g = g, f, h
 		s = s[20:]
-
-		iters--
-		if iters == 0 {
-			break
-		}
 	}
 
 	g = rotate32(g, 11) * c1
@@ -105,11 +78,9 @@ func (city *Hash32) Sum32() uint32 {
 	f = rotate32(f, 11) * c1
 	f = rotate32(f, 17) * c1
 	h = rotate32(h+g, 19)
-	h = h*5 + 0xe6546b64
-	h = rotate32(h, 17) * c1
+	h = rotate32(h*5+c3, 17) * c1
 	h = rotate32(h+f, 19)
-	h = h*5 + 0xe6546b64
-	h = rotate32(h, 17) * c1
+	h = rotate32(h*5+c3, 17) * c1
 	return h
 
 }
@@ -119,7 +90,7 @@ func (city *Hash32) Reset() {
 }
 
 func (city *Hash32) BlockSize() int {
-	return 1
+	return 32
 }
 
 func (city *Hash32) Write(s []byte) (n int, err error) {
@@ -132,10 +103,7 @@ func (city *Hash32) Size() int {
 }
 
 func bswap32(x uint32) uint32 { // Copied from netbsd's bswap32.c
-	return ((x << 24) & 0xff000000) |
-		((x << 8) & 0x00ff0000) |
-		((x >> 8) & 0x0000ff00) |
-		((x >> 24) & 0x000000ff)
+	return ((x << 24) & 0xff000000) | ((x << 8) & 0x00ff0000) | ((x >> 8) & 0x0000ff00) | ((x >> 24) & 0x000000ff)
 }
 
 func fmix(h uint32) uint32 {
@@ -147,22 +115,13 @@ func fmix(h uint32) uint32 {
 	return h
 }
 
-func rotate32(val uint32, shift uint32) uint32 {
-	// Avoid shifting by 32: doing so yields an undefined result.
-	if shift != 0 {
-		return ((val >> shift) | (val << (32 - shift)))
-	}
-	return val
+func rotate32(val uint32, shift uint32) uint32 { // Avoid shifting by 32: doing so yields an undefined result.
+	return ((val >> shift) | (val << (32 - shift)))
 }
 
 func mur(a, h uint32) uint32 {
-	a *= c1
-	a = rotate32(a, 17)
-	a *= c2
-	h ^= a
-	h = rotate32(h, 19)
-	z := h*5 + 0xe6546b64
-	return z
+	a = rotate32(a*c1, 17) * c2
+	return rotate32(h^a, 19)*5 + c3
 }
 
 func fetch32(p []byte) uint32 {
@@ -182,21 +141,17 @@ func hash32Len13to24(s []byte, length uint32) uint32 {
 
 func hash32Len0to4(s []byte, length uint32) uint32 {
 	var b, c uint32 = 0, 9
-
 	tmp := s[:length]
 	for _, v := range tmp {
 		b = uint32(int64(b)*int64(c1) + int64(int8(v)))
 		c ^= b
 	}
-
 	return fmix(mur(b, mur(length, c)))
 }
 
 func hash32Len5to12(s []byte, length uint32) uint32 {
-	a, b, c := length, length*5, uint32(9)
-	d := b
-	a += fetch32(s)
-	b += fetch32(s[length-4:])
-	c += fetch32(s[((length >> 1) & 4):])
-	return fmix(mur(c, mur(b, mur(a, d))))
+	a := length + fetch32(s)
+	b := length*5 + fetch32(s[length-4:])
+	c := 9 + fetch32(s[((length>>1)&4):])
+	return fmix(mur(c, mur(b, mur(a, length*5))))
 }

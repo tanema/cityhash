@@ -34,7 +34,7 @@ func (city *Hash128) Sum128() Uint128 {
 	}
 
 	if length < 128 {
-		return cityMurmur(s, length, seed)
+		return cityMurmur(s, seed)
 	}
 
 	origLength := length
@@ -52,7 +52,7 @@ func (city *Hash128) Sum128() Uint128 {
 	w.setLower64(rotate64(y+z, 35)*k1 + x)
 	w.setHigher64(rotate64(x+fetch64(s[88:]), 53) * k1)
 
-	for {
+	for ; length >= 128; length -= 128 {
 		x = rotate64(x+y+v.Lower64()+fetch64(s[8:]), 37) * k1
 		y = rotate64(y+v.Higher64()+fetch64(s[48:]), 42) * k1
 		x ^= w.Higher64()
@@ -71,11 +71,6 @@ func (city *Hash128) Sum128() Uint128 {
 		w = weakHashLen32WithSeeds3(s[32:], z+w.Higher64(), y+fetch64(s[16:]))
 		z, x = x, z
 		s = s[64:]
-		length -= 128
-
-		if length < 128 {
-			break
-		}
 	}
 
 	x += rotate64(v.Lower64()+z, 49) * k0
@@ -85,15 +80,13 @@ func (city *Hash128) Sum128() Uint128 {
 	v.setLower64(v.Lower64() * k0)
 
 	// If 0 < length < 128, hash up to 4 chunks of 32 bytes each from the end of s.
-	var tail_done uint32
-	for tail_done = 0; tail_done < length; {
-		tail_done += 32
+	for tailDone := uint32(32); tailDone < length+32; tailDone += 32 {
 		y = rotate64(x+y, 42)*k0 + v.Higher64()
-		w.setLower64(w.Lower64() + fetch64(t[origLength-tail_done+16:]))
+		w.setLower64(w.Lower64() + fetch64(t[origLength-tailDone+16:]))
 		x = x*k0 + w.Lower64()
-		z += w.Higher64() + fetch64(t[origLength-tail_done:])
+		z += w.Higher64() + fetch64(t[origLength-tailDone:])
 		w.setHigher64(w.Higher64() + v.Lower64())
-		v = weakHashLen32WithSeeds3(t[origLength-tail_done:], v.Lower64()+z, v.Higher64())
+		v = weakHashLen32WithSeeds3(t[origLength-tailDone:], v.Lower64()+z, v.Higher64())
 		v.setLower64(v.Lower64() * k0)
 	}
 
@@ -111,7 +104,7 @@ func (city *Hash128) Reset() {
 }
 
 func (city *Hash128) BlockSize() int {
-	return 1
+	return 128
 }
 
 func (city *Hash128) Write(s []byte) (n int, err error) {
@@ -123,16 +116,15 @@ func (city *Hash128) Size() int {
 	return 16
 }
 
-func cityMurmur(s []byte, length uint32, seed Uint128) Uint128 {
+func cityMurmur(s []byte, seed Uint128) Uint128 {
+	length := uint32(len(s))
 	a := seed.Lower64()
 	b := seed.Higher64()
+
 	var c, d uint64
-	l := int32(length) - 16
-
-	if l <= 0 { // len <= 16
+	if int32(length)-16 <= 0 {
 		a = shiftMix(a*k1) * k1
-		c = b*k1 + hashLen0to16(s, length)
-
+		c = b*k1 + hashLen0to16(s)
 		if length >= 8 {
 			d = shiftMix(a + fetch64(s))
 		} else {
@@ -142,20 +134,12 @@ func cityMurmur(s []byte, length uint32, seed Uint128) Uint128 {
 		c = hashLen16(fetch64(s[length-8:])+k1, a)
 		d = hashLen16(b+uint64(length), c+fetch64(s[length-16:]))
 		a += d
-
-		for {
-			a ^= shiftMix(fetch64(s)*k1) * k1
-			a *= k1
+		for l := length; l > 16; l -= 16 {
+			a = (a ^ (shiftMix(fetch64(s)*k1) * k1)) * k1
 			b ^= a
-			c ^= shiftMix(fetch64(s[8:])*k1) * k1
-			c *= k1
+			c = (c ^ (shiftMix(fetch64(s[8:])*k1) * k1)) * k1
 			d ^= c
 			s = s[16:]
-			l -= 16
-
-			if l <= 0 {
-				break
-			}
 		}
 	}
 
